@@ -41,6 +41,12 @@ class QualConstantsMetricGroup(MetricGroupDef):
                 .correlate(query))
 
 
+    def add_params(self, params):
+        params['queryids'] = [int(params['query'])]
+        return params
+
+
+
     def post_process(self, data, database, query, qual, **kwargs):
         if not data['data']:
             return data
@@ -72,23 +78,28 @@ class QualDetail(ContentWidget):
         c = inner_cc(stmt)
         stmt = stmt.alias()
         stmt = (stmt.select()
-            .where((c.qualid == bindparam("qualid")))
+            .where((stmt.c.qualid == bindparam("qualid")))
             .where(stmt.c.occurences > 0)
-            .column((c.queryid == bindparam("query")).label("is_my_query")))
+            .column((stmt.c.queryid == bindparam("query")).label("is_my_query")))
         quals = list(self.execute(
             stmt,
             params={"query": query,
                     "from": self.get_argument("from"),
                     "to": self.get_argument("to"),
+                    "queryids": [query],
                     "qualid": qual}))
         my_qual = None
         other_queries = {}
+        other_queries = {r['queryid']: r['query'] for r in self.execute(text("""
+            SELECT DISTINCT queryid, query
+            FROM powa_qualstats_quals
+            JOIN powa_statements USING (queryid)
+            WHERE qualid = :qual
+            LIMIT 5"""), {"qual": qual})}
         for qual in quals:
             if qual['is_my_query']:
                 my_qual = resolve_quals(self.connect(database=database),
                                         [qual])[0]
-            else:
-                other_queries[qual['queryid']] = qual['query']
         if my_qual is None:
             self.render("xhr.html", content="nodata")
             return

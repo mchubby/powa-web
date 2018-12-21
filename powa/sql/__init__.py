@@ -298,9 +298,11 @@ def qual_constants(type, filter_clause, top=1):
         JOIN (
             SELECT *
             FROM powa_qualstats_constvalues_history qnc
+            WHERE queryid = ANY(:queryids)
             UNION ALL
             SELECT *
             FROM powa_qualstats_aggregate_constvalues_current
+            WHERE queryid = ANY(:queryids)
         ) qnc ON qn.qualid = qnc.qualid AND qn.queryid = qnc.queryid,
         LATERAL
                 unnest(%s) as t(constants,occurences, nbfiltered,execution_count)
@@ -403,6 +405,7 @@ def get_any_sample_query(ctrl, database, queryid, _from, _to):
 
 def qualstat_get_figures(conn, database, tsfrom, tsto, queries=None, quals=None):
     condition = text("""datname = :database AND coalesce_range && tstzrange(:from, :to)""")
+    queries = [int(q) for q in queries]
     if queries is not None:
         condition = and_(condition, array([int(q) for q in queries])
                          .any(literal_column("s.queryid")))
@@ -437,7 +440,8 @@ def qualstat_get_figures(conn, database, tsfrom, tsto, queries=None, quals=None)
 
     params = {"database": database,
               "from": tsfrom,
-              "to": tsto}
+              "to": tsto,
+              "queryids": queries}
     quals = conn.execute(sql, params=params)
 
     if quals.rowcount == 0:
