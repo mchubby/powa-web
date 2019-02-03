@@ -2,35 +2,54 @@
 powa-remote main application.
 """
 
-from powa_remote.options import parse_options
+from powa_remote.options import (parse_options, get_full_config,
+                                 add_servers_config)
 from powa_remote.powa_worker import PowaThread
+import psycopg2
 import time
 import logging
 import signal
 
 __VERSION__ = '0.0.1'
-__VERSION_NUM__ =[int(part) for part in __VERSION__.split('.')]
+__VERSION_NUM__ = [int(part) for part in __VERSION__.split('.')]
 
-from powa_remote.options import parse_options
 
 class PowaRemote():
-    def __init__(self, loglevel = logging.INFO):
+    def __init__(self, loglevel=logging.INFO):
         self.workers = {}
         self.logger = logging.getLogger("powa-remote")
-        self.stopping = False;
+        self.stopping = False
 
         extra = {'threadname': '-'}
-        logging.basicConfig(format='%(asctime)s %(threadname)s: %(message)s ', level=loglevel)
+        logging.basicConfig(
+                format='%(asctime)s %(threadname)s %(levelname)-6s: %(message)s ',
+                level=loglevel)
         self.logger = logging.LoggerAdapter(self.logger, extra)
         signal.signal(signal.SIGHUP, self.sighandler)
         signal.signal(signal.SIGTERM, self.sighandler)
 
     def main(self):
-        self.config = parse_options()
+        raw_options = parse_options()
         self.logger.info("Starting powa-remote...")
+
+        try:
+            self.logger.debug("Connecting on repository...")
+            self.__repo_conn = psycopg2.connect(raw_options["repository"]['dsn'])
+            self.logger.debug("Connected.")
+            cur = self.__repo_conn.cursor()
+            cur.execute("SET application_name = %s",
+                        ('PoWA remote - main thread', ))
+            cur.close()
+        except psycopg2.Error as e:
+            self.logger.error("Error connecting:\n%s", e)
+            exit(1)
+
+        self.config = add_servers_config(self.__repo_conn, raw_options)
 
         for k, conf in self.config["servers"].items():
             self.register_worker(k, self.config["repository"], conf)
+
+        self.list_workers()
 
         try:
             while (not self.stopping):
@@ -42,7 +61,7 @@ class PowaRemote():
 
     def register_worker(self, name, repository, config):
             self.workers[name] = PowaThread(name, repository, config)
-            #self.workers[s].daemon = True
+            # self.workers[s].daemon = True
             self.workers[name].start()
 
     def stop_all_workers(self):
@@ -60,13 +79,19 @@ class PowaRemote():
         else:
             self.logger.error("Unhandled signal %d" % signum);
 
-    def reload_conf(self):
+    def list_workers(self):
         self.logger.info('List of workers:')
         for k, worker in self.workers.items():
-            self.logger.info(" %s%s" % (k, "" if (worker.isAlive()) else
+            # self.logger.info(" %s%s" % (k, "" if (worker.isAlive()) else
+            #                             " (stopped)"))
+            self.logger.info("%r%s" % (worker, "" if (worker.isAlive()) else
                                         " (stopped)"))
+
+    def reload_conf(self):
+        self.list_workers()
+
         self.logger.info('Reloading...')
-        config_new = parse_options()
+        config_new = get_full_config(self.__repo_conn)
 
         # check for removed servers
         for k, worker in self.workers.items():
@@ -93,6 +118,7 @@ class PowaRemote():
                 self.workers[k].ask_reload(cur)
 
         self.config = config_new
+        self.logger.info('Reload done')
 
 def conf_are_equal(conf1, conf2):
     for k in conf1.keys():

@@ -17,20 +17,20 @@ class QualConstantsMetricGroup(MetricGroupDef):
     Metric group used for the qual charts.
     """
     name = "QualConstants"
-    data_url = r"/metrics/database/([^\/]+)/query/(-?\d+)/qual/(\d+)/constants"
+    data_url = r"/server/(\d+)/metrics/database/([^\/]+)/query/(-?\d+)/qual/(\d+)/constants"
     xaxis = "rownumber"
     occurences = MetricDef(label="<%=group%>")
     grouper = "constants"
 
     @property
     def query(self):
-        query = (qual_constants("most_used",
+        query = (qual_constants(bindparam("server"), "most_used",
                                 text("""
             datname = :database AND
             s.queryid = :query AND
             qn.qualid = :qual AND
             coalesce_range && tstzrange(:from, :to)"""), top=10))
-        base = qualstat_getstatdata()
+        base = qualstat_getstatdata(bindparam("server"))
         c = inner_cc(base)
         base = base.where(c.queryid == bindparam("query")).alias()
         totals = (base.select()
@@ -41,10 +41,10 @@ class QualConstantsMetricGroup(MetricGroupDef):
                 .correlate(query))
 
 
-    def post_process(self, data, database, query, qual, **kwargs):
+    def post_process(self, data, server, database, query, qual, **kwargs):
         if not data['data']:
             return data
-        conn = self.connect(database=database)
+        conn = self.connect(server, database=database)
         max_rownumber = 0
         total_top10 = 0
         total = None
@@ -65,10 +65,10 @@ class QualDetail(ContentWidget):
     Content widget showing detail for a specific qual.
     """
     title = "Detail for this Qual"
-    data_url = r"/database/([^\/]+)/query/(-?\d+)/qual/(\d+)/detail"
+    data_url = r"/server/(\d+)/database/([^\/]+)/query/(-?\d+)/qual/(\d+)/detail"
 
-    def get(self, database, query, qual):
-        stmt = qualstat_getstatdata()
+    def get(self, server, database, query, qual):
+        stmt = qualstat_getstatdata(server)
         c = inner_cc(stmt)
         stmt = stmt.alias()
         stmt = (stmt.select()
@@ -85,7 +85,7 @@ class QualDetail(ContentWidget):
         other_queries = {}
         for qual in quals:
             if qual['is_my_query']:
-                my_qual = resolve_quals(self.connect(database=database),
+                my_qual = resolve_quals(self.connect(server, database=database),
                                         [qual])[0]
             else:
                 other_queries[qual['queryid']] = qual['query']
@@ -95,6 +95,7 @@ class QualDetail(ContentWidget):
         self.render("database/query/qualdetail.html",
                     qual=my_qual,
                     database=database,
+                    server=server,
                     other_queries=other_queries)
 
 
@@ -103,9 +104,9 @@ class QualOverview(DashboardPage):
     Dashboard page for a specific qual.
     """
 
-    base_url = r"/database/([^\/]+)/query/(-?\d+)/qual/(\d+)"
+    base_url = r"/server/(\d+)/database/([^\/]+)/query/(-?\d+)/qual/(\d+)"
 
-    params = ["database", "query", "qual"]
+    params = ["server", "database", "query", "qual"]
 
     parent = QueryOverview
 

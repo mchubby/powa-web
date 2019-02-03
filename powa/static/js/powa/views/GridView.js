@@ -145,6 +145,10 @@ define([
         }
     });
 
+    Backgrid.Extension.TextCell = Backgrid.Cell.extend({
+        className: "text-cell"
+    });
+
     var DescHeaderCell = Backgrid.HeaderCell.extend({
         onClick: function(e){
             e.preventDefault();

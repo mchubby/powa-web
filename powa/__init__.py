@@ -4,7 +4,7 @@ Powa main application.
 """
 import os
 
-__VERSION__ = '3.2.1'
+__VERSION__ = '4.0.0'
 __VERSION_NUM__ = [int(part) for part in __VERSION__.split('.')]
 POWA_ROOT = os.path.dirname(__file__)
 
@@ -15,6 +15,7 @@ from powa import ui_modules, ui_methods
 from powa.framework import AuthHandler
 from powa.user import LoginHandler, LogoutHandler
 from powa.overview import Overview
+from powa.server import ServerSelector, ServerOverview
 from powa.database import DatabaseSelector, DatabaseOverview
 from powa.query import QueryOverview
 from powa.qual import QualOverview
@@ -34,6 +35,7 @@ class IndexHandler(AuthHandler):
 URLS = [
     U(r"/login/", LoginHandler, name="login"),
     U(r"/logout/", LogoutHandler, name="logout"),
+    U(r"/server/select", ServerSelector, name="server_selector"),
     U(r"/database/select", DatabaseSelector, name="database_selector"),
     U(r"/", IndexHandler, name="index"),
     U(r"/database/([^\/]+)/suggest/", IndexSuggestionHandler,
@@ -42,6 +44,7 @@ URLS = [
 
 
 for dashboard in (Overview,
+                  ServerOverview,
                   DatabaseOverview,
                   QueryOverview,
                   QualOverview,

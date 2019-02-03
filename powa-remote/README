@@ -1,0 +1,27 @@
+Overview
+========
+
+This directory contains the `powa-remote` tool, a simple multi-threaded python
+program that performs the snapshots on all the remote servers configured in a
+powa database (in the **powa_servers** table).
+
+Requirements
+============
+
+This program requires python 2.7 or python 3.
+
+The required dependencies are listed in the **requirements.txt** file.
+
+Configuration
+=============
+
+Copy the provided `powa-remote.conf-dist` file to a new `powa-remote.conf`
+file, and adapt the **dsn** specification to be able to connect to the wanted
+main PoWA remote repository.
+
+Usage
+=====
+
+To start the program, simply run the powa_remote.py program.  A `SIGTERM` or a
+`Keyboard Interrupt` on the program will cleanly stop all the thread and exit
+the program.  A `SIGHUP` will reload the configuration.
